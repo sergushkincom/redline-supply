@@ -14,7 +14,7 @@ Redline Supply is a clickable prototype of one procurement loop: see a gap in su
 
 First version. Local demo with seeded data. No login, no email, no ERP connection.
 
-Live URL: [DENYS: paste the Vercel URL once the project is deployed]
+Live URL: https://redline-supply-seven.vercel.app
 
 ## Stack
 
