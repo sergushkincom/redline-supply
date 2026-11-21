@@ -4,7 +4,7 @@
 
 ![Review and approve](docs/screenshots/review.png)
 
-Live demo: [DENYS: Vercel URL]
+Live demo: [redline-supply-seven.vercel.app](https://redline-supply-seven.vercel.app)
 
 ## The problem
 
