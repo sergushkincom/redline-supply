@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { approvalsNeeded } from '@/lib/fields';
-import { applyApproved, bulkDecide, canFinish, decide, decidePicking, unresolvedConflicts } from '@/lib/review';
+import { applyApproved, approvalMeter, bulkDecide, canFinish, decide, decidePicking, unresolvedConflicts } from '@/lib/review';
 import type { Campaign, ProposedChange, SeedData } from '@/lib/types';
 
 const at = '2026-11-20T08:00:00.000Z';
@@ -77,6 +77,34 @@ describe('decide', () => {
     expect(canFinish([first], campaign(2))).toBe(false);
     const second = decide(first, 'u_head', 'approve', at, 2);
     expect(canFinish([second], campaign(2))).toBe(true);
+  });
+});
+
+describe('approvalMeter', () => {
+  it('stays hidden until a sensitive field has its first approval', () => {
+    expect(approvalMeter(change({ sensitive: true, field: 'iban' }), 1)).toBeNull();
+  });
+
+  it('shows one of two after the first approval on a sensitive field', () => {
+    const first = decide(change({ sensitive: true, field: 'iban' }), 'u_buyer', 'approve', at, 1);
+    expect(approvalMeter(first, 1)).toEqual({ done: 1, need: 2 });
+  });
+
+  it('fills both steps once the second person approves', () => {
+    const first = decide(change({ sensitive: true, field: 'iban' }), 'u_buyer', 'approve', at, 1);
+    const second = decide(first, 'u_head', 'approve', at, 1);
+    expect(approvalMeter(second, 1)).toEqual({ done: 2, need: 2 });
+  });
+
+  it('does not show a meter for an ordinary field, even when the campaign asks for two people', () => {
+    const next = decide(change(), 'u_buyer', 'approve', at, 2);
+    expect(next.state).toBe('to_review');
+    expect(approvalMeter(next, 2)).toBeNull();
+  });
+
+  it('hides the meter when the sensitive row is rejected', () => {
+    const rejected = decide(change({ sensitive: true, field: 'iban' }), 'u_buyer', 'reject', at, 1);
+    expect(approvalMeter(rejected, 1)).toBeNull();
   });
 });
 

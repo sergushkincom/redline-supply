@@ -41,6 +41,7 @@ The demo clock is 20 Nov 2026, Europe/Berlin, so expiry and due dates do not dri
 ## Decisions
 
 - A price change is sensitive when the current or the proposed value is at least €500. Bank details, REACH, RoHS, the LkSG self-assessment and CO₂e always need two approvers.
+- Approving a row draws a line through the old value from left to right and briefly highlights the new value green. A sensitive field shows a filling meter, "1 of 2 approvals", until the second person approves. Reduced motion skips the animation and shows the result at once.
 - The RoHS campaign and the CBAM campaign both start in review. One is the field-diff screen, the other is what moves the coverage numbers.
 - "Unfinished" means recipients who have not fully answered.
 - There is no phone number on a supplier. Streets are invented.

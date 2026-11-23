@@ -2,17 +2,17 @@
 
 import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState, type ReactNode, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
 import { SourceChip } from '@/components/source-chip';
 import { Button } from '@/components/ui/button';
 import { Menu } from '@/components/ui/menu';
 import { Pill } from '@/components/ui/pill';
 import { displayValue } from '@/lib/display';
-import { approverCount, approvalsNeeded } from '@/lib/fields';
+import { approverCount } from '@/lib/fields';
 import { formatDate } from '@/lib/format';
 import { recipientStats } from '@/lib/home';
 import { fieldLabel, t } from '@/lib/i18n';
-import { fieldKey, finishBlock, tally } from '@/lib/review';
+import { approvalMeter, fieldKey, finishBlock, tally } from '@/lib/review';
 import { canRoleDecide, useDemo } from '@/lib/store';
 import type { ProposedChange } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -122,7 +122,7 @@ export function ReviewScreen({ id }: { id: string }) {
                       {supplierRows.length > 0 ? (
                         <Section label={t(locale, 'supplierFields')}>
                           {supplierRows.map((change) => (
-                            <DiffRow key={change.id} change={change} rows={rows} locale={locale} role={role} onDecide={decideChange} closed={campaign.status === 'closed'} />
+                            <DiffRow key={change.id} change={change} rows={rows} locale={locale} role={role} requiredApprovals={campaign.requiredApprovals} onDecide={decideChange} closed={campaign.status === 'closed'} />
                           ))}
                         </Section>
                       ) : null}
@@ -132,7 +132,7 @@ export function ReviewScreen({ id }: { id: string }) {
                         return (
                           <Section key={articleId} label={article ? `${article.name} · ${article.partNo}` : articleId}>
                             {articleRows.map((change) => (
-                              <DiffRow key={change.id} change={change} rows={rows} locale={locale} role={role} onDecide={decideChange} closed={campaign.status === 'closed'} />
+                              <DiffRow key={change.id} change={change} rows={rows} locale={locale} role={role} requiredApprovals={campaign.requiredApprovals} onDecide={decideChange} closed={campaign.status === 'closed'} />
                             ))}
                           </Section>
                         );
@@ -196,11 +196,16 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function DiffRow({
   change,
   rows,
   locale,
   role,
+  requiredApprovals,
   onDecide,
   closed,
 }: {
@@ -208,6 +213,7 @@ function DiffRow({
   rows: ProposedChange[];
   locale: 'en' | 'de';
   role: 'buyer' | 'compliance' | 'head';
+  requiredApprovals: 1 | 2;
   onDecide: (id: string, decision: 'approve' | 'reject') => void;
   closed: boolean;
 }) {
@@ -217,29 +223,52 @@ function DiffRow({
   const approved = change.state === 'approved' || change.state === 'applied';
   const rejected = change.state === 'rejected';
   const allowed = canRoleDecide(role, change) && !closed && change.state !== 'applied';
-  const partialSecond = change.sensitive && change.state === 'to_review' && approverCount(change) > 0 && approverCount(change) < approvalsNeeded(change, 2);
+  const done = approverCount(change);
+  const meter = approvalMeter(change, requiredApprovals);
+  const showStrike = changing && !empty;
+  const seen = useRef(done);
+  const ticks = useRef(0);
+  if (done > seen.current) ticks.current += 1;
+  seen.current = done;
+  const motionTick = ticks.current;
 
   return (
-    <div className="grid grid-cols-[minmax(140px,1.1fr)_minmax(120px,1fr)_minmax(140px,1.1fr)_minmax(160px,0.9fr)_92px] items-center gap-2 border-b border-line px-3" style={{ minHeight: 48 }}>
+    <div
+      data-testid="review-row"
+      data-field={change.field}
+      data-motion-tick={motionTick}
+      className="grid grid-cols-[minmax(140px,1.1fr)_minmax(120px,1fr)_minmax(140px,1.1fr)_minmax(160px,0.9fr)_92px] items-center gap-2 border-b border-line px-3"
+      style={{ minHeight: 48 }}
+    >
       <div className="text-[13px] leading-[18px] text-secondary">
         {fieldLabel(locale, change.field)}
         {conflict ? <span className="mt-0.5 block text-[12px] text-wait-fg">{t(locale, 'conflict')}</span> : null}
       </div>
-      <div className={cn('truncate text-[13px] leading-[18px]', changing && !empty ? 'text-tertiary line-through' : 'text-tertiary')}>
-        {displayValue(change.field, change.from, locale)}
+      <div className="min-w-0 text-[13px] leading-[18px] text-tertiary">
+        <span
+          key={motionTick}
+          data-testid="old-value"
+          className={cn('inline-block max-w-full truncate', showStrike && 'review-old', showStrike && motionTick > 0 && 'review-strike')}
+        >
+          {displayValue(change.field, change.from, locale)}
+        </span>
       </div>
       <div
+        data-testid="proposed-value"
         className={cn(
-          'rounded-[6px] px-2 py-1 text-[13px] leading-[18px] font-medium',
+          'relative isolate rounded-[6px] px-2 py-1 text-[13px] leading-[18px] font-medium',
           approved && 'bg-ready-bg text-ready-fg',
           rejected && 'bg-bad-bg text-bad-fg',
         )}
       >
-        <span className="block truncate">{displayValue(change.field, change.to, locale)}</span>
-        {rejected ? <span className="ml-2 text-[12px] font-semibold">{t(locale, 'rejectedMark')}</span> : null}
-        {approved ? <span className="ml-2 text-[12px] font-medium">{t(locale, 'approvedWord')}</span> : null}
-        {partialSecond ? <span className="mt-0.5 block text-[12px] font-medium text-wait-fg">{t(locale, 'needSecond')}</span> : null}
-        {conflict && !rejected ? <span className="mt-0.5 block text-[12px] text-tertiary">{t(locale, 'conflictHint')}</span> : null}
+        {motionTick > 0 && !rejected ? (
+          <span key={motionTick} data-testid="value-flash" className="review-flash pointer-events-none absolute inset-0 -z-10 rounded-[6px]" aria-hidden />
+        ) : null}
+        <span className="relative block truncate">{displayValue(change.field, change.to, locale)}</span>
+        {rejected ? <span className="relative ml-2 text-[12px] font-semibold">{t(locale, 'rejectedMark')}</span> : null}
+        {approved ? <span className="relative ml-2 text-[12px] font-medium">{t(locale, 'approvedWord')}</span> : null}
+        {meter ? <ApprovalMeter changeId={change.id} done={meter.done} need={meter.need} locale={locale} animate={motionTick > 0} /> : null}
+        {conflict && !rejected ? <span className="relative mt-0.5 block text-[12px] text-tertiary">{t(locale, 'conflictHint')}</span> : null}
       </div>
       <SourceChip source={change.source} locale={locale} />
       <div className="flex justify-end gap-1">
@@ -268,6 +297,59 @@ function DiffRow({
           <X size={16} aria-hidden />
         </button>
       </div>
+    </div>
+  );
+}
+
+function ApprovalMeter({
+  changeId,
+  done,
+  need,
+  locale,
+  animate,
+}: {
+  changeId: string;
+  done: number;
+  need: number;
+  locale: 'en' | 'de';
+  animate: boolean;
+}) {
+  const pct = need === 0 ? 0 : Math.round((done / need) * 100);
+  const [width, setWidth] = useState(() => (animate && !prefersReducedMotion() ? 0 : pct));
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setWidth(pct);
+      return;
+    }
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setWidth(pct));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      if (second) cancelAnimationFrame(second);
+    };
+  }, [pct]);
+  const label = t(locale, 'approvalProgress', { done, need });
+  const labelId = `approval-label-${changeId}`;
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={need}
+      aria-valuenow={done}
+      aria-labelledby={labelId}
+      data-testid="approval-progress"
+      data-done={done}
+      data-need={need}
+      className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5"
+    >
+      <span className="relative h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-line-strong" aria-hidden>
+        <span data-testid="approval-fill" className="review-fill block h-full rounded-full bg-ready-dot" style={{ width: `${width}%` }} />
+      </span>
+      <span id={labelId} className="whitespace-nowrap text-[12px] leading-4 font-medium text-secondary">
+        {label}
+      </span>
     </div>
   );
 }
