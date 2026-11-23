@@ -266,3 +266,15 @@ export function tally(changes: ProposedChange[]): { approved: number; rejected: 
     toReview: changes.filter((change) => change.state === 'to_review').length,
   };
 }
+
+export function approvalMeter(
+  change: Pick<ProposedChange, 'sensitive' | 'decisions' | 'state'>,
+  requiredApprovals: 1 | 2,
+): { done: number; need: number } | null {
+  if (!change.sensitive || change.state === 'rejected') return null;
+  const need = approvalsNeeded(change, requiredApprovals);
+  if (need < 2) return null;
+  const done = approverCount(change);
+  if (done < 1) return null;
+  return { done: Math.min(done, need), need };
+}

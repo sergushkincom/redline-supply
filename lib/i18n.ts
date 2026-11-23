@@ -181,6 +181,7 @@ const dict = {
   finish: { en: 'Finish review', de: 'Prüfung abschliessen' },
   finishBody: { en: 'You are being asked to approve this request. Once every row is decided, finish the review.', de: 'Bitte prüfen Sie diese Anfrage. Wenn jede Zeile entschieden ist, schliessen Sie die Prüfung ab.' },
   needSecond: { en: 'Needs a second approver', de: 'Braucht eine zweite Freigabe' },
+  approvalProgress: { en: '{done} of {need} approvals', de: '{done} von {need} Freigaben' },
   twoApproverSentence: { en: 'This change needs two approvers before it can be applied.', de: 'Diese Änderung braucht zwei Freigaben, bevor sie übernommen wird.' },
   headFinishes: { en: 'The head of procurement finishes this review.', de: 'Die Einkaufsleitung schliesst diese Prüfung ab.' },
   conflict: { en: 'Conflicting answers', de: 'Widersprüchliche Antworten' },
